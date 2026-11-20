@@ -1,0 +1,9 @@
+# Store text files with Linux line endings (LF) in git, whatever the machine.
+# Shell scripts and config files run inside Linux containers and on the Linux VM,
+# where Windows line endings (CRLF) break them.
+* text=auto eol=lf
+
+# Binary files: never touch
+*.png binary
+*.jpg binary
+*.pdf binary

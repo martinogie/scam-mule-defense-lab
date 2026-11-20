@@ -1,0 +1,68 @@
+# ---------------------------------------------------------------------------------------------
+# This repository is PUBLIC. Anything not ignored here can end up on GitHub.
+# ---------------------------------------------------------------------------------------------
+
+# Secrets: never commit (CLAUDE.md hard rule 1)
+.env
+.env.*
+!.env.example
+keys/
+*.p8
+*.pem
+*.key
+*.pfx
+*.p12
+
+# Private notes for the owner, kept off GitHub (same choice as bank-health-data-platform)
+CLAUDE.md
+docs/Scam_Mule_Defense_Lab_Blueprint_*.pdf
+docs/history/
+
+# Data: simulation outputs and downloaded public data can be large; they are rebuilt, not committed
+data/
+*.parquet
+mlruns/
+mlartifacts/
+
+# Local database files
+*.db
+*.sqlite
+*.sqlite3
+*.duckdb
+*.duckdb.wal
+
+# Python and tools
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# Coverage output
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Airflow, dbt, Databricks local output
+logs/
+*.log
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+dbt/.user.yml
+.databricks/
+
+# Editors and operating systems
+.idea/
+.DS_Store
+Thumbs.db
+.claude/settings.local.json
