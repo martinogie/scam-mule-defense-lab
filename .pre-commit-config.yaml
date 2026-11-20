@@ -1,0 +1,41 @@
+# Checks that run automatically on `git commit` (install once: uv run pre-commit install).
+# CI runs the same checks, so a skipped hook is still caught on GitHub.
+# Run on everything by hand: uv run pre-commit run --all-files
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files   # stops data files sneaking in
+        args: [--maxkb=1000]
+      - id: detect-private-key        # stops .pem / .p8 style keys
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      # Scans the staged changes for passwords, tokens and API keys. Runs the gitleaks Docker
+      # image, so Docker Desktop must be running (same choice as the Bank Health project).
+      - id: gitleaks-docker
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.6   # keep equal to the ruff version in uv.lock
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      # mypy runs inside the project's own environment (.venv), so it sees the real libraries.
+      - id: mypy
+        name: mypy
+        entry: uv run --frozen mypy
+        language: system
+        types: [python]
+        pass_filenames: false
