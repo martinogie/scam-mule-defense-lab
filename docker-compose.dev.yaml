@@ -1,0 +1,18 @@
+# Dev stack (Martins' PC): the same services as docker-compose.yaml, with dev names.
+#   docker compose -f docker-compose.yaml -f docker-compose.dev.yaml up -d --wait
+# (or just `docker compose up -d --wait` once .env sets COMPOSE_FILE; see .env.example)
+#
+# The project name gives dev its own containers, network and volumes, and dev uses its own
+# database (scam_mule_dev), so dev can never read or overwrite prod data. Same pattern as
+# bank-health-data-platform/airflow/docker-compose.dev.yaml.
+name: scam-mule-dev
+
+services:
+  redpanda:
+    restart: "no"   # on the PC, start it when you need it; don't hold memory after a reboot
+  redis:
+    restart: "no"
+  postgres:
+    restart: "no"
+    environment:
+      POSTGRES_DB: scam_mule_dev
