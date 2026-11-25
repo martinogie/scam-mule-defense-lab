@@ -25,7 +25,7 @@ the live Bank Health project ([ADR 0004](0004-oracle-vm-memory-budget.md)).
 2. **Small memory footprint**, with a hard cap, on a shared 24 GB VM.
 3. **Recognised by banks:** Kafka's interface is the industry standard for event streaming, so
    using it makes the skills transferable.
-4. **Free:** no paid managed service (CLAUDE.md rule 4).
+4. **Free:** free services only; no paid managed service.
 5. **Simple to run** for one person: one container per piece, a health check, nothing exotic.
 6. **Replay:** events kept long enough to replay a recorded day for the demo's fallback.
 

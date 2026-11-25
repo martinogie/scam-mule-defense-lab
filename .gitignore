@@ -2,7 +2,7 @@
 # This repository is PUBLIC. Anything not ignored here can end up on GitHub.
 # ---------------------------------------------------------------------------------------------
 
-# Secrets: never commit (CLAUDE.md hard rule 1)
+# Secrets: never commit passwords, tokens, API keys or private keys
 .env
 .env.*
 !.env.example

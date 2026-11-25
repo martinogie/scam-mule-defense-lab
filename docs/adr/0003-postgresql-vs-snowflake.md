@@ -22,7 +22,7 @@ question is which fits *this* project's job.
 1. **The workload.** Case management is many small writes and updates, done in transactions
    ("open case, assign analyst, record decision"). An audit trail must be complete and in order.
    That is classic transactional (OLTP) work.
-2. **Cost:** free or nearly free (CLAUDE.md rule 4).
+2. **Cost:** free services only, or as close to free as possible.
 3. **Runs on the PC and on the VM**, next to the scoring service, without depending on an outside
    service for the live demo.
 4. **dbt support**, and easy browsing in pgAdmin or DBeaver.

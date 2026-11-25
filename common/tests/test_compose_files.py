@@ -1,4 +1,4 @@
-"""The Docker Compose files must keep the promises made in ADR 0004 and CLAUDE.md.
+"""The Docker Compose files must keep the promises made in ADR 0004 and the security rules.
 
 These tests read the YAML files directly, so they run without Docker. If someone later opens a
 port to the network, removes a memory cap or renames a database, CI fails before it is merged.
@@ -51,7 +51,7 @@ def test_database_names_match_the_python_settings() -> None:
 
 @pytest.mark.parametrize("name", sorted(SERVICES))
 def test_ports_are_published_on_localhost_only(name: str) -> None:
-    """Nothing internal may be reachable from the network (CLAUDE.md, Phase 10 safety rules)."""
+    """Nothing internal may be reachable from the network; only the public demo endpoint ever is."""
     for port in SERVICES[name].get("ports", []):
         assert str(port).startswith("127.0.0.1:"), f"{name} publishes {port} beyond localhost"
 

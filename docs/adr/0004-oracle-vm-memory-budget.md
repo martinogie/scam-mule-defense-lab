@@ -17,7 +17,7 @@ That VM already runs **Bank Health in production**:
 - Its weekly run starts **every Monday at 06:00 Chicago time**. Its promise (service level
   objective) is that the week's data is ready by **Monday 12:00**. The VM is busy for about 30
   minutes a week.
-- **Bank Health comes first** (CLAUDE.md rule 5). Nothing in this project may disturb that run.
+- **Bank Health comes first:** this project must never disturb Bank Health's Monday run.
 
 The risk isn't average use; it's a **peak at the wrong moment**. If this project's containers
 and Bank Health's Monday run together exceed memory, Linux's "out-of-memory killer" stops a
@@ -55,10 +55,10 @@ at most 2.5 of the 4 cores for the Phase 0 services, at half the normal CPU prio
 |---|---|---|
 | **A. No scam-mule Airflow on the VM.** Batch work (simulation, training, downloads) runs on the PC and on Databricks; the VM only serves the demo. | Smallest footprint on the VM; no scheduled jobs that could collide with Monday | Batch runs need the PC or Databricks; the demo serves a fixed, replayed day |
 | B. A second Airflow on the VM, for this project | Fully automated pipeline on the VM | Another 3-4 GB; two schedulers on one machine; more collision risk |
-| C. Share Bank Health's Airflow | No extra memory | Ties the two projects together: a scam-mule bug or deploy could break Bank Health. Against rule 5. |
+| C. Share Bank Health's Airflow | No extra memory | Ties the two projects together: a scam-mule bug or deploy could break Bank Health, which must always come first. |
 
 The draft leans towards **A** for the always-on demo, with the heavy 24-month simulation and graph
-training on Databricks (as CLAUDE.md already says).
+training on Databricks, where the project plan already puts them.
 
 ## Protections for the Monday run
 
