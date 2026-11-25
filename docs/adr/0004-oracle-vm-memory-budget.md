@@ -10,6 +10,12 @@ The always-on demo (the scoring service, the "try a payment" endpoint and the da
 behind them) will run on Martins' Oracle Cloud VM: an Arm machine (Ampere A1) with **4 cores, 24 GB
 of memory and a 4 GB swap file**.
 
+The "try a payment" demo is **live**: a visitor's synthetic payment goes through Cloudflare to the
+public demo endpoint on the VM, which calls the real scoring service and returns the score, action,
+reasons, model version and speed. Requests are rate-limited per visitor and overall. Only two
+things use a **recorded replay** instead: the live decision stream panel, and the fallback the
+website switches to when the VM is down or slower than 2 seconds.
+
 That VM already runs **Bank Health in production**:
 
 - Bank Health's Airflow stack uses about **3-4 GB** (its own estimate, in its
@@ -53,7 +59,7 @@ at most 2.5 of the 4 cores for the Phase 0 services, at half the normal CPU prio
 
 | Option | Strengths | Weaknesses |
 |---|---|---|
-| **A. No scam-mule Airflow on the VM.** Batch work (simulation, training, downloads) runs on the PC and on Databricks; the VM only serves the demo. | Smallest footprint on the VM; no scheduled jobs that could collide with Monday | Batch runs need the PC or Databricks; the demo serves a fixed, replayed day |
+| **A. No scam-mule Airflow on the VM.** Batch work (simulation, training, downloads) runs on the PC and on Databricks; the VM only serves the demo. | Smallest footprint on the VM; no scheduled jobs that could collide with Monday | Batch runs need the PC or Databricks; the VM can score live demo payments but can't simulate new days, so the stream panel replays a recorded day |
 | B. A second Airflow on the VM, for this project | Fully automated pipeline on the VM | Another 3-4 GB; two schedulers on one machine; more collision risk |
 | C. Share Bank Health's Airflow | No extra memory | Ties the two projects together: a scam-mule bug or deploy could break Bank Health, which must always come first. |
 
@@ -69,10 +75,12 @@ training on Databricks, where the project plan already puts them.
    Health's.
 3. **Lower CPU priority:** `cpu_shares: 512` (Docker's normal is 1024), so Bank Health wins when
    both are busy.
-4. **A no-go window, Sunday 22:00 to Monday 14:00 Chicago time** (proposed): no scheduled
-   scam-mule jobs, no deploys, no image builds and no heavy replays on the VM. That's the 06:00
-   start with 8 hours of margin before it, and 2 hours after the 12:00 promise. If Bank Health
-   runs late or is re-run, scam-mule work waits until its run log shows success.
+4. **A no-go window, Sunday 22:00 to Monday 14:00 Chicago time** (proposed; **to confirm against
+   Bank Health's actual schedule**): no scheduled scam-mule jobs, no deploys, no image builds and
+   no heavy replays on the VM. That's the 06:00 start with 8 hours of margin before it, and 2
+   hours after the 12:00 promise. If Bank Health runs late or is re-run, scam-mule work waits
+   until its run log shows success. The live demo keeps answering during the window, inside its
+   memory caps, with its rate limits keeping the load small.
 5. **Images built elsewhere** (in CI) and pulled, not built on the VM. Bank Health's runbook notes
    that image builds cause memory peaks.
 6. **A one-line stop switch:** `docker compose -p scam-mule stop` frees all of this project's
@@ -84,7 +92,11 @@ training on Databricks, where the project plan already puts them.
 
 - `docker-compose.yaml` (prod) carries the Phase 0 caps today; later phases must fit inside the
   6 GB ceiling or come back to this ADR.
-- The live demo replays a fixed recorded day instead of running the full simulator on the VM.
+- The "try a payment" demo is live: it calls the real scoring service on the VM, so the scoring
+  service (1 GB) and demo endpoint (0.5 GB) slices above are always-on costs, not optional ones.
+- The full simulator never runs on the VM. The live decision stream panel replays a recorded day,
+  and the fallback (VM down, or slower than 2 seconds) is a recorded replay served with the
+  static website, so it works with the VM off and uses no VM memory.
 - Before the first deploy to the VM (Phase 6 or 10), Martins measures the real Bank Health figures
   and fills in the table above.
 - The no-go window will be enforced in code by whichever component schedules work on the VM, with
