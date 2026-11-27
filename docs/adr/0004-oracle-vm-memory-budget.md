@@ -31,7 +31,8 @@ process, and it might pick Bank Health's. Heavy swapping would slow everything d
 
 ## What matters
 
-1. Bank Health's Monday run is never slowed or stopped by this project.
+1. Bank Health's Monday run and the CECL Lab's Wednesday run are never slowed or stopped by this
+   project.
 2. This project's memory use has a **hard ceiling**, enforced by Docker, not just intended.
 3. If memory does run short anyway, **this project's containers die first**.
 4. The demo still works the rest of the week, within its 100 ms p99 target.
@@ -59,14 +60,14 @@ at most 2.5 of the 4 cores for the Phase 0 services, at half the normal CPU prio
 
 | Option | Strengths | Weaknesses |
 |---|---|---|
-| **A. No scam-mule Airflow on the VM.** Batch work (simulation, training, downloads) runs on the PC and on Databricks; the VM only serves the demo. | Smallest footprint on the VM; no scheduled jobs that could collide with Monday | Batch runs need the PC or Databricks; the VM can score live demo payments but can't simulate new days, so the stream panel replays a recorded day |
+| **A. No scam-mule Airflow on the VM.** Batch work (simulation, training, downloads) runs on the PC and on Databricks; the VM only serves the demo. | Smallest footprint on the VM; no scheduled jobs that could collide with the other projects' runs | Batch runs need the PC or Databricks; the VM can score live demo payments but can't simulate new days, so the stream panel replays a recorded day |
 | B. A second Airflow on the VM, for this project | Fully automated pipeline on the VM | Another 3-4 GB; two schedulers on one machine; more collision risk |
 | C. Share Bank Health's Airflow | No extra memory | Ties the two projects together: a scam-mule bug or deploy could break Bank Health, which must always come first. |
 
 The draft leans towards **A** for the always-on demo, with the heavy 24-month simulation and graph
 training on Databricks, where the project plan already puts them.
 
-## Protections for the Monday run
+## Protections for the other projects' runs
 
 1. **Hard caps in Docker** (`mem_limit`, with `memswap_limit` equal to it, so no swap use) on every
    container, checked by a test (`common/tests/test_compose_files.py`) so a cap can't silently
@@ -75,12 +76,18 @@ training on Databricks, where the project plan already puts them.
    Health's.
 3. **Lower CPU priority:** `cpu_shares: 512` (Docker's normal is 1024), so Bank Health wins when
    both are busy.
-4. **A no-go window, Sunday 22:00 to Monday 14:00 Chicago time** (proposed; **to confirm against
-   Bank Health's actual schedule**): no scheduled scam-mule jobs, no deploys, no image builds and
-   no heavy replays on the VM. That's the 06:00 start with 8 hours of margin before it, and 2
-   hours after the 12:00 promise. If Bank Health runs late or is re-run, scam-mule work waits
-   until its run log shows success. The live demo keeps answering during the window, inside its
-   memory caps, with its rate limits keeping the load small.
+4. **Quiet windows (America/Chicago), on both the Oracle VM and Databricks.** This project does
+   no heavy work during:
+
+   | Window | Protects |
+   |---|---|
+   | Monday 00:00 to 13:00 | Bank Health's weekly run (starts 06:00; data promised by 12:00) |
+   | Wednesday 00:00 to 18:00 | the CECL Lifetime Loss Lab's run |
+
+   "Heavy work" means simulation runs, feature builds, training, graph jobs and big downloads.
+   Databricks is included because the Free Edition's daily compute quota is shared between the
+   projects: a heavy job here could leave another project's run without compute. The live demo
+   endpoint is not heavy work and stays up during both windows, inside its memory cap.
 5. **Images built elsewhere** (in CI) and pulled, not built on the VM. Bank Health's runbook notes
    that image builds cause memory peaks.
 6. **A one-line stop switch:** `docker compose -p scam-mule stop` frees all of this project's
@@ -99,8 +106,9 @@ training on Databricks, where the project plan already puts them.
   static website, so it works with the VM off and uses no VM memory.
 - Before the first deploy to the VM (Phase 6 or 10), Martins measures the real Bank Health figures
   and fills in the table above.
-- The no-go window will be enforced in code by whichever component schedules work on the VM, with
-  a test.
+- The quiet windows are enforced in code by `scamsim/schedule_guard.py` (`is_quiet_window`), with
+  tests for the edges of each window and for daylight-saving changes. Anything that starts heavy
+  work, on the VM or on Databricks, checks it first.
 
 ## Conclusion
 
