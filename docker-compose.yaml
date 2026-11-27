@@ -1,0 +1,129 @@
+# Scam & Mule Defense Lab: the data services (Redpanda, Redis, PostgreSQL).
+#
+# THIS FILE IS PROD: the always-on demo on the Oracle VM, which is SHARED WITH BANK HEALTH.
+# The PC (dev) adds docker-compose.dev.yaml on top: its own project name, containers, volumes
+# and database, so dev data never mixes with prod. Same pattern as bank-health-data-platform.
+#
+# Memory and CPU limits come from docs/adr/0004-oracle-vm-memory-budget.md. Together the three
+# services can never use more than 3 GB of RAM or 2.5 CPU cores, and they never use swap.
+# If memory runs short, the kernel stops these containers BEFORE Bank Health's (oom_score_adj).
+#
+# Start (and wait until every service is healthy):  docker compose up -d --wait
+# Check:                                            docker compose ps
+# Stop (keeps the data):                            docker compose stop
+#
+# Ports are opened on 127.0.0.1 only: reachable from this machine, never from the network or the
+# internet. On the VM they are reached through an SSH tunnel.
+#
+# Secrets (POSTGRES_PASSWORD, REDIS_PASSWORD) come from .env, which is git-ignored.
+# Compose refuses to start if either is missing.
+
+name: scam-mule
+
+# Settings shared by all three services ("x-" blocks are reusable snippets).
+x-shared: &shared
+  restart: unless-stopped   # comes back after a VM reboot; not after `docker compose stop`
+  oom_score_adj: 500        # if the VM runs out of memory, kill these first, not Bank Health
+  cpu_shares: 512           # half the normal CPU priority: Bank Health wins when both are busy
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }   # logs can't fill the disk
+
+services:
+  redpanda:
+    # The event stream (Kafka-compatible). ADR 0002.
+    image: redpandadata/redpanda:v26.2.7
+    <<: *shared
+    command:
+      - redpanda
+      - start
+      # Single-node settings for a container: no OS tuning checks, safe on a shared machine.
+      # The events are synthetic and can be replayed, so the faster, less durable mode is fine.
+      - --mode=dev-container
+      - --smp=1                 # one CPU core
+      - --memory=1G             # Redpanda's own memory; the container cap below adds headroom
+      - --reserve-memory=0M
+      - --default-log-level=warn
+      # Two doors: "internal" for other containers, "external" for programs on this machine.
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
+    ports:
+      - "127.0.0.1:19092:19092"   # Kafka API for programs on this machine
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    mem_limit: 1536m
+    memswap_limit: 1536m          # same as mem_limit = no swap
+    cpus: 1.0
+    healthcheck:
+      # Healthy when the (one-node) cluster reports itself healthy.
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    # The live feature store ("first payment to this payee?", "third transfer in 10 minutes?").
+    image: redis:8.8.4-alpine
+    <<: *shared
+    # Memory-only cache: live features are rebuilt from the event stream, so nothing is saved to
+    # disk. When full, Redis drops the least recently used keys instead of failing.
+    command:
+      - sh
+      - -c
+      - >-
+        exec redis-server
+        --requirepass "$$REDIS_PASSWORD"
+        --maxmemory 256mb
+        --maxmemory-policy allkeys-lru
+        --save ""
+        --appendonly no
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+      REDISCLI_AUTH: ${REDIS_PASSWORD}   # lets the health check log in without printing it
+    ports:
+      - "127.0.0.1:16379:6379"
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpus: 0.5
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  postgres:
+    # Alerts, cases, decisions, audit trail and website marts. ADR 0003.
+    image: postgres:17.12-bookworm
+    <<: *shared
+    environment:
+      POSTGRES_USER: scam_mule
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: scam_mule   # prod's database; dev uses scam_mule_dev (common/environment.py)
+    # Small-machine settings: a modest cache and few connections keep memory low.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=512MB
+      - -c
+      - max_connections=40
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 1.0
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+volumes:
+  redpanda-data:
+  postgres-data:
