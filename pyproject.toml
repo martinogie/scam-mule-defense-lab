@@ -11,8 +11,12 @@ license-files = ["LICENSE"]
 authors = [{ name = "Martins Ogiekpolor" }]
 # 3.12 everywhere (PC, CI, VM containers) so the same code and the same lockfile work in all places.
 requires-python = ">=3.12,<3.13"
-# No runtime libraries yet. Each phase adds only what it uses.
-dependencies = []
+# Each phase adds only what it uses.
+dependencies = [
+    # Time-zone rules for zoneinfo. Linux has them built in; Windows doesn't, so without this
+    # the quiet-window guard (scamsim/schedule_guard.py) can't find America/Chicago on the PC.
+    "tzdata>=2026.6",
+]
 
 [dependency-groups]
 # Tools for checking the code. Installed by `uv sync`, never shipped.
