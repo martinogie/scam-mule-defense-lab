@@ -1,4 +1,4 @@
-# Scam & Mule Defense Lab: the data services (Redpanda, Redis, PostgreSQL).
+# Scam & Mule Defense Lab: the data services (Apache Kafka, Redis, PostgreSQL).
 #
 # THIS FILE IS PROD: the always-on demo on the Oracle VM, which is SHARED WITH BANK HEALTH.
 # The PC (dev) adds docker-compose.dev.yaml on top: its own project name, containers, volumes
@@ -30,37 +30,66 @@ x-shared: &shared
     options: { max-size: "10m", max-file: "3" }   # logs can't fill the disk
 
 services:
-  redpanda:
-    # The event stream (Kafka-compatible). ADR 0002.
-    image: redpandadata/redpanda:v26.2.7
+  kafka:
+    # The event stream: Apache Kafka, one broker in KRaft mode (Kafka manages itself; no
+    # ZooKeeper). ADR 0002. Official image, Intel and Arm builds (the Oracle VM is Arm).
+    image: apache/kafka:4.4.0
     <<: *shared
-    command:
-      - redpanda
-      - start
-      # Single-node settings for a container: no OS tuning checks, safe on a shared machine.
-      # The events are synthetic and can be replayed, so the faster, less durable mode is fine.
-      - --mode=dev-container
-      - --smp=1                 # one CPU core
-      - --memory=1G             # Redpanda's own memory; the container cap below adds headroom
-      - --reserve-memory=0M
-      - --default-log-level=warn
-      # Two doors: "internal" for other containers, "external" for programs on this machine.
-      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
-      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
+    environment:
+      # One process is both the broker (stores and serves events) and the controller (keeps
+      # track of the cluster). Fine for a single-machine demo; a bank would run 3+ of each.
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # A fixed, made-up cluster ID (not a secret) so the data folder is formatted the same way
+      # every time.
+      CLUSTER_ID: c2NhbS1tdWxlLWxhYjAwMQ
+      # Three doors: INTERNAL for other containers, EXTERNAL for programs on this machine, and
+      # CONTROLLER for Kafka's own housekeeping.
+      KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL://:19092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      # With one broker, Kafka's internal topics can only have one copy each.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Topics are created on purpose (dev.payments, prod.payments ...), never by a typo.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      # Keep a week of events for replays, but never more than 1 GB per partition (disk).
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_RETENTION_BYTES: 1073741824
+      # Java heap fixed at 512 MB. The container cap below leaves about 1 GB more for Java's own
+      # overhead and the file cache Kafka relies on.
+      KAFKA_HEAP_OPTS: -Xms512m -Xmx512m
     ports:
       - "127.0.0.1:19092:19092"   # Kafka API for programs on this machine
     volumes:
-      - redpanda-data:/var/lib/redpanda/data
+      - kafka-data:/var/lib/kafka/data
     mem_limit: 1536m
     memswap_limit: 1536m          # same as mem_limit = no swap
     cpus: 1.0
     healthcheck:
-      # Healthy when the (one-node) cluster reports itself healthy.
-      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
+      # Healthy when the broker answers a real request. The check is itself a small Java program;
+      # it gets its own 128 MB heap, or it would inherit the broker's 512 MB.
+      # Each check costs a full CPU core for several seconds (Java starting up). Measured on the
+      # PC, checking every 15 s averaged 38% of a core, so: every 5 s while starting (fast
+      # `up --wait`), then once a minute.
+      test:
+        - CMD-SHELL
+        - >-
+          KAFKA_HEAP_OPTS=-Xmx128m /opt/kafka/bin/kafka-broker-api-versions.sh
+          --bootstrap-server localhost:9092 > /dev/null 2>&1
+      start_period: 90s
+      start_interval: 5s
+      interval: 60s
+      timeout: 20s
+      retries: 3
 
   redis:
     # The live feature store ("first payment to this payee?", "third transfer in 10 minutes?").
@@ -125,5 +154,5 @@ services:
       start_period: 20s
 
 volumes:
-  redpanda-data:
+  kafka-data:
   postgres-data:

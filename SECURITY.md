@@ -23,7 +23,7 @@ there is no bug bounty.
 ## The public demo
 
 Only the demo endpoint is meant to be reachable from the internet. The internal services
-(Redpanda, Redis, PostgreSQL) listen on localhost only. If you can reach any of them from
+(Kafka, Redis, PostgreSQL) listen on localhost only. If you can reach any of them from
 outside, please report it as above.
 
 ## Responsible use

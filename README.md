@@ -50,7 +50,7 @@ intel/       real public data: downloads and cleaning
 features/    feature definitions shared by batch and live code
 models/      scam, mule, aml, screening, policy, refunds, uplift
 serving/     scoring service and demo endpoint
-streaming/   stream processors (Redpanda -> Redis)
+streaming/   stream processors (Kafka -> Redis)
 casemgmt/    case management database and API
 common/      shared helpers (dev / ci / prod settings)
 airflow/  databricks/  dbt/  site/  scripts/
@@ -76,7 +76,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the dev / prod set-up and how changes
 ## Design decisions
 
 - [ADR 0001: Simulated data, with scamsim as an agent-based model](docs/adr/0001-simulated-data-and-agent-based-scamsim.md)
-- [ADR 0002: Streaming stack: Redpanda and Redis](docs/adr/0002-streaming-stack-redpanda-and-redis.md)
+- [ADR 0002: Streaming stack: Apache Kafka and Redis](docs/adr/0002-streaming-stack-kafka-and-redis.md)
 - [ADR 0003: PostgreSQL versus Snowflake](docs/adr/0003-postgresql-vs-snowflake.md)
 - [ADR 0004: Oracle VM memory budget alongside Bank Health](docs/adr/0004-oracle-vm-memory-budget.md)
 

@@ -47,7 +47,7 @@ class Settings:
 
     name: str
     postgres_database: str
-    topic_prefix: str  # Redpanda topics, e.g. "dev.payments"
+    topic_prefix: str  # Kafka topics, e.g. "dev.payments"
     redis_key_prefix: str  # Redis keys, e.g. "dev:features:customer:123"
 
     @property
@@ -55,7 +55,11 @@ class Settings:
         return self.name == "prod"
 
     def topic(self, base: str) -> str:
-        """Full Redpanda topic name, e.g. topic("payments") -> "dev.payments"."""
+        """Full Kafka topic name, e.g. topic("payments") -> "dev.payments".
+
+        Use dots only, never underscores (dev.new.payee, not dev.new_payee): Kafka treats "." and
+        "_" as the same character in its metric names, so mixing them can make two topics clash.
+        """
         return f"{self.topic_prefix}{base}"
 
     def redis_key(self, *parts: str) -> str:

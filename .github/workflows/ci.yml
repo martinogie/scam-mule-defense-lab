@@ -114,14 +114,24 @@ jobs:
             echo "$name=$value" >> "$GITHUB_ENV"
           done
       - name: Start the stack and wait until every service is healthy
-        run: docker compose up -d --wait --wait-timeout 180
+        # Kafka (a Java program) takes the longest; about a minute on a PC.
+        run: docker compose up -d --wait --wait-timeout 240
       - name: Show the services (each should say "healthy")
         run: docker compose ps
-      - name: Each service answers a real request
+      - name: Kafka stores a message and hands it back
+        # Kafka's tools are Java programs too: give them a small heap of their own, or each one
+        # inherits the broker's 512 MB inside the same 1.5 GB container.
         run: |
-          docker compose exec -T redpanda rpk topic create ci.smoke
-          echo "hello" | docker compose exec -T redpanda rpk topic produce ci.smoke
-          docker compose exec -T redpanda rpk topic consume ci.smoke --num 1
+          kafka="docker compose exec -T -e KAFKA_HEAP_OPTS=-Xmx128m kafka /opt/kafka/bin"
+          $kafka/kafka-topics.sh --bootstrap-server localhost:9092 \
+            --create --topic ci.smoke --partitions 1 --replication-factor 1
+          echo "hello" | $kafka/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic ci.smoke
+          got=$($kafka/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic ci.smoke \
+            --from-beginning --max-messages 1 --timeout-ms 60000)
+          echo "received: $got"
+          test "$got" = "hello"
+      - name: Redis and PostgreSQL answer a real request
+        run: |
           docker compose exec -T redis redis-cli set ci:smoke ok
           test "$(docker compose exec -T redis redis-cli get ci:smoke)" = "ok"
           docker compose exec -T postgres psql -U scam_mule -d scam_mule -c "select version();"
