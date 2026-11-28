@@ -92,11 +92,12 @@ testpaths = [
 [tool.coverage.run]
 branch = true
 # Only the folders with a coverage target are measured.
-source = ["common", "scamsim", "features", "models/policy", "serving"]
+source = ["common", "scamsim", "intel", "features", "models/policy", "serving"]
 omit = ["**/tests/**"]
 
 [tool.coverage.report]
-# Project rule: at least 80% for scamsim/, features/, models/policy/ and serving/ (plus common/).
+# Project rule: at least 80% for scamsim/, features/, models/policy/ and serving/ (plus common/
+# and intel/, whose downloaders feed every real-data figure).
 # CI runs this gate on exactly those folders; see .github/workflows/ci.yml.
 fail_under = 80
 show_missing = true

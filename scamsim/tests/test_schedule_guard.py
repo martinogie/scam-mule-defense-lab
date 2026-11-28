@@ -6,7 +6,14 @@ from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
-from scamsim.schedule_guard import CHICAGO, is_quiet_window
+from scamsim.schedule_guard import (
+    CHICAGO,
+    QuietWindowError,
+    active_window,
+    ensure_not_quiet,
+    is_quiet_window,
+    run_heavy_job,
+)
 
 
 def chicago(year: int, month: int, day: int, hour: int, minute: int) -> datetime:
@@ -57,3 +64,56 @@ def test_any_time_zone_is_converted_first() -> None:
 def test_a_time_without_a_time_zone_is_refused() -> None:
     with pytest.raises(ValueError, match="time-zone-aware"):
         is_quiet_window(datetime(2026, 11, 30, 6, 0))  # no tzinfo, on purpose
+
+
+# --- Polite exits for heavy jobs --------------------------------------------------------------
+
+
+def test_the_active_window_says_what_it_protects() -> None:
+
+    window = active_window(chicago(2026, 12, 2, 9, 0))
+    assert window is not None
+    assert "CECL" in window.protects
+    assert active_window(chicago(2026, 12, 1, 9, 0)) is None
+
+
+def test_ensure_not_quiet_explains_when_to_try_again() -> None:
+
+    with pytest.raises(QuietWindowError) as caught:
+        ensure_not_quiet("CFPB download", now=chicago(2026, 11, 30, 9, 30))
+    message = str(caught.value)
+    assert "CFPB download not started" in message
+    assert "Bank Health" in message
+    assert "Monday until 13:00 America/Chicago" in message
+    assert "Nothing was changed" in message
+
+
+def test_ensure_not_quiet_lets_work_start_outside_the_windows() -> None:
+
+    ensure_not_quiet("CFPB download", now=chicago(2026, 12, 1, 9, 30))  # Tuesday: no error
+
+
+def test_run_heavy_job_skips_politely_in_a_quiet_window(capsys: pytest.CaptureFixture[str]) -> None:
+
+    ran: list[bool] = []
+    code = run_heavy_job("Model training", lambda: ran.append(True), chicago(2026, 12, 2, 17, 0))
+    assert code == 0  # a skip is not a failure
+    assert ran == []  # the work never started
+    assert "Model training not started" in capsys.readouterr().out
+
+
+def test_run_heavy_job_runs_the_work_otherwise() -> None:
+
+    ran: list[bool] = []
+    thursday_morning = chicago(2026, 12, 3, 9, 0)
+    assert run_heavy_job("Model training", lambda: ran.append(True), thursday_morning) == 0
+    assert ran == [True]
+
+
+def test_run_heavy_job_still_reports_real_errors() -> None:
+
+    def broken() -> None:
+        raise RuntimeError("disk full")
+
+    with pytest.raises(RuntimeError, match="disk full"):
+        run_heavy_job("Model training", broken, chicago(2026, 12, 3, 9, 0))
