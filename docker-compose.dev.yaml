@@ -8,7 +8,7 @@
 name: scam-mule-dev
 
 services:
-  redpanda:
+  kafka:
     restart: "no"   # on the PC, start it when you need it; don't hold memory after a reboot
   redis:
     restart: "no"

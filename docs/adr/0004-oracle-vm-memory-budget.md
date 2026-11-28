@@ -1,14 +1,14 @@
 # ADR 0004: Oracle VM memory budget, alongside Bank Health
 
-- **Status:** proposed (Phase 0, 19 Nov 2026). Accepted once the measured Bank Health figures are
-  filled in and the conclusion below is written.
+- **Status:** proposed (Phase 0, 19 Nov 2026). At-rest figures measured 27 Nov 2026. Accepted once
+  the Monday-peak figure is filled in and the conclusion below is written.
 - **Deciders:** Martins Ogiekpolor
 
 ## Context
 
 The always-on demo (the scoring service, the "try a payment" endpoint and the data services
 behind them) will run on Martins' Oracle Cloud VM: an Arm machine (Ampere A1) with **4 cores, 24 GB
-of memory and a 4 GB swap file**.
+of memory (23 GB visible to Linux, measured) and a 4 GB swap file**.
 
 The "try a payment" demo is **live**: a visitor's synthetic payment goes through Cloudflare to the
 public demo endpoint on the VM, which calls the real scoring service and returns the score, action,
@@ -18,8 +18,9 @@ website switches to when the VM is down or slower than 2 seconds.
 
 That VM already runs **Bank Health in production**:
 
-- Bank Health's Airflow stack uses about **3-4 GB** (its own estimate, in its
-  `airflow/docker-compose.yaml`), plus its own PostgreSQL metadata database.
+- The Airflow stack that runs Bank Health (and the CECL Lifetime Loss Lab) measured about
+  **1.1 GB** at rest on 27 Nov 2026, well under its own 3-4 GB estimate. Its containers have
+  **no memory limits** today.
 - Its weekly run starts **every Monday at 06:00 Chicago time**. Its promise (service level
   objective) is that the week's data is ready by **Monday 12:00**. The VM is busy for about 30
   minutes a week.
@@ -38,23 +39,50 @@ process, and it might pick Bank Health's. Heavy swapping would slow everything d
 4. The demo still works the rest of the week, within its 100 ms p99 target.
 5. Simple enough for one person to check in a minute.
 
-## Proposed budget (to confirm with measured figures)
+## Budget
 
-| Slice | Proposed | Measured (Martins fills in) |
+### Measured on the VM, 27 Nov 2026, at rest (Martins)
+
+| What | Measured |
+|---|---|
+| Whole VM | 23 GB total, about **2.6 GB used**, about **20 GB available** (`free -h`) |
+| Shared Airflow stack (Bank Health, CECL Lab) | about **1.1 GB**: scheduler 350 MB, dag-processor 338 MB, apiserver 300 MB, PostgreSQL 85 MB (`docker stats --no-stream`) |
+| Everything else (operating system, Docker, SSH) | about 1.5 GB (2.6 GB used minus the 1.1 GB Airflow stack) |
+| Bank Health Monday-run peak | **still to measure** (`docker stats` during the Monday 06:00 run) |
+
+### Plan
+
+| Slice | Planned | Measured / notes |
 |---|---|---|
-| Operating system, Docker, SSH | 2 GB | ___ GB (`free -h` with all stacks stopped) |
-| Bank Health, normal week | 3-4 GB (its estimate) | ___ GB (`docker stats --no-stream`, idle) |
-| Bank Health, Monday-run peak, with room to grow | reserve **8 GB** | ___ GB (`docker stats` during the run) |
+| Operating system, Docker, SSH | 2 GB | about 1.5 GB |
+| Shared Airflow stack, normal week | (inside the reserve below) | about 1.1 GB at rest |
+| Shared Airflow stack, Monday-run peak, with room to grow | reserve **8 GB** | still to measure |
 | Unallocated safety margin | at least **6 GB** | |
 | **Scam & Mule Defense Lab, hard ceiling** | **6 GB** in total | |
-| of which: Redpanda + Redis + PostgreSQL (Phase 0) | 3 GB (1.5 + 0.5 + 1) | `docker stats` |
+| of which: Kafka + Redis + PostgreSQL (Phase 0) | 3 GB (1.5 + 0.5 + 1) | about 0.45 GB at rest, measured on the PC (Kafka about 400 MB, PostgreSQL 40-70 MB, Redis under 10 MB) |
 | of which: scoring service (Phase 6) | 1 GB | |
 | of which: stream processor (Phase 6) | 0.5 GB | |
 | of which: public demo endpoint (Phase 10) | 0.5 GB | |
 | of which: spare | 1 GB | |
 
-2 + 8 + 6 + 6 = 22 GB, leaving 2 GB more on top of the margin. CPU: this project's caps add up to
-at most 2.5 of the 4 cores for the Phase 0 services, at half the normal CPU priority.
+Kafka's slice is its container cap: a fixed 512 MB Java heap inside a 1.5 GB limit
+([ADR 0002](0002-streaming-stack-kafka-and-redis.md)). The 3 GB data-services slice is unchanged
+by the move from Redpanda.
+
+### Headroom that remains
+
+| Case | Adds up to | Left of 23 GB |
+|---|---|---|
+| Planned worst case: OS 2 + Airflow peak reserve 8 + this project's full 6 GB cap | 16 GB | **7 GB**, above the 6 GB safety margin |
+| Today, at rest: 2.6 GB measured + this project's full 6 GB cap | 8.6 GB | **about 14 GB** |
+
+The 6 GB cap for this project stays. The extra headroom is kept as margin, not spent: the
+Monday peak hasn't been measured yet, and the Airflow containers have no memory limits, so a
+runaway task there could take far more than 1.1 GB. If memory still runs short, this project's
+containers are stopped first (protection 2 below).
+
+CPU: this project's caps add up to at most 2.5 of the 4 cores for the Phase 0 services, at half
+the normal CPU priority.
 
 ## Options considered: where the batch work runs
 
