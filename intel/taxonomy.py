@@ -46,17 +46,49 @@ class ScamType:
 
 
 @dataclass(frozen=True)
+class WorkedExample:
+    """A short made-up story showing how a tie-break rule is applied."""
+
+    story: str
+    label: str
+    why: str
+
+
+@dataclass(frozen=True)
+class TieBreak:
+    rule: str
+    examples: tuple[WorkedExample, ...]
+
+
+@dataclass(frozen=True)
+class Flag:
+    """A yes/no question recorded alongside the scam type (not a type itself)."""
+
+    id: str
+    question: str
+    definition: str
+    values: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Taxonomy:
     version: int
     date: date
     verified_against_reports: bool
     types: tuple[ScamType, ...]
-    tie_breaks: tuple[str, ...]
+    tie_breaks: tuple[TieBreak, ...]
+    flags: tuple[Flag, ...]
 
     @property
     def ids(self) -> tuple[str, ...]:
         """The label choices, in file order (used for the labelling dropdown)."""
         return tuple(t.id for t in self.types)
+
+    def flag(self, flag_id: str) -> Flag:
+        for f in self.flags:
+            if f.id == flag_id:
+                return f
+        raise KeyError(f"unknown flag {flag_id!r}")
 
     def get(self, type_id: str) -> ScamType:
         for t in self.types:
@@ -79,17 +111,63 @@ def load_taxonomy(path: Path = TAXONOMY_FILE) -> Taxonomy:
     if not any(not t.authorised_payment for t in types):
         raise TaxonomyError("at least one type must be an unauthorised (non-scam) contrast case")
 
-    tie_breaks = _require(data, "tie_breaks", list, "file")
-    if not tie_breaks or not all(isinstance(r, str) and r.strip() for r in tie_breaks):
+    raw_rules = _require(data, "tie_breaks", list, "file")
+    if not raw_rules:
         raise TaxonomyError("tie_breaks must be a non-empty list of rules")
+    tie_breaks = tuple(_tie_break(raw, i, set(ids)) for i, raw in enumerate(raw_rules))
+
+    raw_flags = _require(data, "flags", list, "file")
+    flags = tuple(_flag(raw, i, set(ids)) for i, raw in enumerate(raw_flags))
 
     return Taxonomy(
         version=_require(data, "version", int, "file"),
         date=_require(data, "date", date, "file"),
         verified_against_reports=_require(data, "verified_against_reports", bool, "file"),
         types=types,
-        tie_breaks=tuple(r.strip() for r in tie_breaks),
+        tie_breaks=tie_breaks,
+        flags=flags,
     )
+
+
+def _tie_break(raw: Any, index: int, type_ids: set[str]) -> TieBreak:
+    where = f"tie-break #{index + 1}"
+    if not isinstance(raw, dict):
+        raise TaxonomyError(f"{where} must be a mapping with a 'rule'")
+    rule = _require(raw, "rule", str, where).strip()
+    if not rule:
+        raise TaxonomyError(f"{where}: rule is empty")
+    examples = []
+    for ex in raw.get("examples", []):
+        if not isinstance(ex, dict):
+            raise TaxonomyError(f"{where}: each example must be a mapping")
+        label = _require(ex, "label", str, where)
+        if label not in type_ids:
+            raise TaxonomyError(f"{where}: example label {label!r} is not a scam type id")
+        story = _require(ex, "story", str, where).strip()
+        why = _require(ex, "why", str, where).strip()
+        if not story or not why:
+            raise TaxonomyError(f"{where}: an example needs a story and a reason")
+        examples.append(WorkedExample(story, label, why))
+    return TieBreak(rule, tuple(examples))
+
+
+def _flag(raw: Any, index: int, type_ids: set[str]) -> Flag:
+    if not isinstance(raw, dict):
+        raise TaxonomyError(f"flag #{index + 1} must be a mapping")
+    flag_id = _require(raw, "id", str, f"flag #{index + 1}")
+    where = f"flag {flag_id!r}"
+    if not _ID.fullmatch(flag_id):
+        raise TaxonomyError(f"{where}: id must be lower_snake_case")
+    if flag_id in type_ids:
+        raise TaxonomyError(f"{where}: a flag can't share its id with a scam type")
+    values = _require(raw, "values", list, where)
+    if values != ["yes", "no"]:
+        raise TaxonomyError(f'{where}: values must be exactly ["yes", "no"] (quoted)')
+    question = _require(raw, "question", str, where).strip()
+    definition = _require(raw, "definition", str, where).strip()
+    if not question or not definition:
+        raise TaxonomyError(f"{where}: needs a question and a definition")
+    return Flag(flag_id, question, definition, ("yes", "no"))
 
 
 def _scam_type(raw: Any, index: int) -> ScamType:

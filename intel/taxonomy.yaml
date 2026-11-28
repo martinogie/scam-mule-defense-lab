@@ -25,7 +25,8 @@ types:
     name: Investment scam
     definition: >-
       The victim is persuaded to "invest" (often crypto, trading apps or fake platforms) and pays
-      money they never get back.
+      money they never get back. Includes "pig butchering": a friendship or romance first, then a
+      fake crypto platform takes the money (see the tie-breaks).
     authorised_payment: true   # the genuine customer sends the money themselves
     in_simulator: true
     ftc:
@@ -36,8 +37,9 @@ types:
   - id: romance
     name: Romance scam
     definition: >-
-      Someone builds a fake relationship (dating app, social media) and then asks for money:
-      emergencies, travel, fees, or a joint "investment".
+      Someone builds a fake relationship (dating app, social media) and then asks for money
+      directly: emergencies, travel, gifts, customs or medical fees. If the money instead goes
+      into a fake investment platform, it is investment ("pig butchering").
     authorised_payment: true
     in_simulator: true
     ftc:
@@ -71,6 +73,8 @@ types:
     note: >-
       Neither report has a bank-only category. FTC counts bank impersonation inside Business
       Imposters; IC3 spreads it across Phishing/Spoofing and others. Use CFPB stories for its share.
+      Step 5 also looks for a published FTC figure on bank impersonation (for example an FTC Data
+      Spotlight) to use as an outside check.
 
   - id: impersonation_business
     name: Business impersonation
@@ -187,19 +191,66 @@ types:
       - {crime_type: none, match: none}
     note: Not counted in any scam figure; kept so the classifier can say "this isn't one".
 
-# When a story fits more than one type, the first rule that applies wins.
+# When a story fits more than one type, the first rule that applies wins. Each rule can carry
+# worked examples; every example's label must be one of the type ids above.
 tie_breaks:
-  - >-
-    Did the customer send the money themselves? If not (card stolen, account taken over), it is
-    unauthorised_fraud, whatever else the story says.
-  - >-
-    Classify by the lie that got the money, not by what the money was spent on. A fake bank
-    caller who moves savings into crypto is impersonation_bank, not investment.
-  - >-
-    A relationship built first, then an "investment" pitch, is romance (the relationship was the
-    hook). An investment pitch with no relationship is investment.
-  - >-
-    Fake invoices or changed payment details for a business or home deposit are
-    invoice_redirection_bec, even if the email looked like it came from a known company.
-  - If it is clearly a scam but none of the named types fits, use other_scam.
-  - If unsure whether it is a scam at all, use not_a_scam and mark confidence "unsure".
+  - rule: >-
+      Who sent the money? If the CRIMINAL sent it (card stolen, account taken over, or the
+      customer was tricked into sharing a one-time code or login and the criminal then moved the
+      money), it is unauthorised_fraud: Regulation E applies and the bank usually refunds. If the
+      customer was talked into sending the money THEMSELVES, it is the matching scam type (often
+      an impersonation type): no refund right under today's US rules.
+    examples:
+      - story: >-
+          A caller "from the bank's fraud team" asks for the code just texted to the customer.
+          The customer reads it out, and the caller logs in and sends $4,000 to an unknown account.
+        label: unauthorised_fraud
+        why: The criminal made the transfer using the stolen code.
+      - story: >-
+          A caller "from the bank's fraud team" says the account is compromised and tells the
+          customer to move $4,000 to a new "safe account". The customer makes the transfer.
+        label: impersonation_bank
+        why: The customer sent the money themselves after being deceived.
+
+  - rule: >-
+      Classify by the lie that got the money, not by how the contact started or what the money
+      was spent on.
+    examples:
+      - story: >-
+          A fake bank caller persuades the customer to move savings into a crypto wallet "for
+          protection", which the caller controls.
+        label: impersonation_bank
+        why: The lie that got the money was "I am your bank".
+      - story: >-
+          "Pig butchering": someone met on a dating app builds a romance over weeks, then guides
+          the victim to a fake crypto trading platform that shows big gains until withdrawals are
+          blocked.
+        label: investment
+        why: The money went into a fake investment platform; the romance was only the approach.
+      - story: >-
+          A partner met online, never seen in person, asks for $2,500 for an emergency hospital bill.
+        label: romance
+        why: The money was asked for directly through the relationship.
+
+  - rule: >-
+      Fake invoices or changed payment details for a business or a home deposit are
+      invoice_redirection_bec, even if the email looked like it came from a known company.
+    examples:
+      - story: >-
+          A small business pays a supplier's invoice to "new bank details" sent in an email that
+          looked like the supplier's; the real supplier was never paid.
+        label: invoice_redirection_bec
+        why: Genuine payment, redirected by changed details.
+
+  - rule: If it is clearly a scam but none of the named types fits, use other_scam.
+  - rule: If unsure whether it is a scam at all, use not_a_scam and mark confidence "unsure".
+
+# Yes/no flags recorded alongside the scam type. They are not types: any story can have them.
+flags:
+  - id: mule_recruitment
+    question: Was the victim used to receive money and pass it on to someone else?
+    definition: >-
+      The complainant was used as a money mule: asked to receive payments into their own account
+      and forward them (often disguised as a job, a "payment processing" role, or a favour for an
+      online partner). Recorded as yes or no, whatever the scam type.
+    values: ["yes", "no"]   # quoted: bare yes/no would be read as true/false
