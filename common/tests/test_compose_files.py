@@ -94,10 +94,28 @@ def test_images_are_pinned_to_an_exact_version(name: str) -> None:
     image = SERVICES[name]["image"]
     assert ":" in image, f"{name} has no tag"
     tag = image.rsplit(":", 1)[-1]
-    version = tag.split("-", 1)[0].lstrip("v")  # "v26.2.7" -> "26.2.7", "17.12-bookworm" -> "17.12"
+    version = tag.split("-", 1)[0].lstrip("v")  # "v1.2.3" -> "1.2.3", "17.12-bookworm" -> "17.12"
     parts = version.split(".")
     assert len(parts) >= 2, f"{name} tag {tag} is not an exact version"
     assert all(p.isdigit() for p in parts), f"{name} tag {tag} is not a version number"
+
+
+def test_kafka_heap_leaves_room_inside_its_container_cap() -> None:
+    """Java uses memory beyond its heap, and Kafka relies on the file cache (ADR 0002).
+
+    If the heap grew to fill the container cap, the kernel would kill Kafka under load.
+    """
+    kafka = SERVICES["kafka"]
+    heap_opts = str(kafka["environment"]["KAFKA_HEAP_OPTS"])
+    max_heap = next(opt for opt in heap_opts.split() if opt.startswith("-Xmx"))
+    heap_mb = _megabytes(max_heap.removeprefix("-Xmx"))
+    cap_mb = _megabytes(kafka["mem_limit"])
+    assert heap_mb <= cap_mb // 2, f"Kafka heap {heap_mb} MB is over half its {cap_mb} MB cap"
+
+
+def test_kafka_never_creates_topics_by_accident() -> None:
+    """A typo like dev.paymnets must fail loudly, not quietly create a new, empty topic."""
+    assert str(SERVICES["kafka"]["environment"]["KAFKA_AUTO_CREATE_TOPICS_ENABLE"]) == "false"
 
 
 def test_secrets_are_required_not_defaulted() -> None:
