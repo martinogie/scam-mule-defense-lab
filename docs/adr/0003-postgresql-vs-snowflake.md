@@ -56,4 +56,4 @@ question is which fits *this* project's job.
 
 ## Conclusion
 
-*To be written by Martins, in his own words.*
+I chose PostgreSQL for case management because the work is many small, frequent changes: an alert is opened, assigned, updated, noted and closed, and every step needs a complete, in-order audit trail. That is exactly what PostgreSQL is built for, and it's free and runs right next to the live demo on my VM. Snowflake is built for large analytics queries, charges for compute, and would make the live demo depend on a paid outside service. I gave up Snowflake's scale and brand name on this project, and that's acceptable for three reasons: the case data is small, the heavy analytics run on Databricks, and my Bank Health project already shows Snowflake skills. I would revisit this if the case data grew to millions of rows a day, or if a future employer's stack made a Snowflake version worth showing.
