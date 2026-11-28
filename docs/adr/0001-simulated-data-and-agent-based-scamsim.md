@@ -1,6 +1,6 @@
 # ADR 0001: Simulated data, with scamsim as an agent-based model
 
-- **Status:** proposed (Phase 0, 19 Nov 2026). Accepted once the conclusion below is written.
+- **Status:** accepted (27 Nov 2026). Proposed in Phase 0, 19 Nov 2026.
 - **Deciders:** Martins Ogiekpolor
 
 ## Context
