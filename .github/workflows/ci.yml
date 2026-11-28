@@ -60,11 +60,11 @@ jobs:
       - run: uv sync --locked
       - name: pytest with coverage
         run: uv run pytest --cov --cov-report=term --cov-report=xml
-      - name: "Coverage gate: each of common, scamsim, features, models/policy, serving >= 80%"
+      - name: "Coverage gate: each of common, scamsim, intel, features, models/policy, serving >= 80%"
         # One gate per folder, so a well-tested folder can't hide an untested one.
         # A folder with no code yet (Phase 0) is reported and skipped.
         run: |
-          for d in common scamsim features models/policy serving; do
+          for d in common scamsim intel features models/policy serving; do
             if out=$(uv run coverage report --include="$d/*" --fail-under=80 2>&1); then
               echo "$d: $(echo "$out" | tail -1)"
             elif echo "$out" | grep -q "No data to report"; then
