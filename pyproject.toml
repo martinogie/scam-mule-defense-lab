@@ -13,6 +13,9 @@ authors = [{ name = "Martins Ogiekpolor" }]
 requires-python = ">=3.12,<3.13"
 # Each phase adds only what it uses.
 dependencies = [
+    # Reads the project's YAML files at run time: the scam-type list (intel/taxonomy.yaml) and,
+    # from step 6, the calibration targets.
+    "pyyaml>=6.0.3",
     # Time-zone rules for zoneinfo. Linux has them built in; Windows doesn't, so without this
     # the quiet-window guard (scamsim/schedule_guard.py) can't find America/Chicago on the PC.
     "tzdata>=2026.6",
@@ -25,7 +28,6 @@ dev = [
     "pre-commit>=4.7.0",
     "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
-    "pyyaml>=6.0.3",
     "ruff>=0.17.6",
     "types-pyyaml>=6.0.12.20261113",
 ]

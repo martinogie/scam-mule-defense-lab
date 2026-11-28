@@ -1,0 +1,205 @@
+# Scam types: the one shared vocabulary for the whole project.
+#
+# The classifier sorts CFPB complaint stories into these types, Martins labels 200 stories with
+# them, the FTC / FBI IC3 figures are matched to them, and the simulator (scamsim) uses the same
+# names. Each type maps to the FTC Consumer Sentinel and FBI IC3 category names, so a figure from
+# either report can be compared with ours.
+#
+# Mapping strength:
+#   exact = their category is the same thing as our type
+#   part  = their category is broader (ours is a slice of it) or narrower (it covers part of ours)
+#   none  = they have no matching category; the note says what to do instead
+#
+# Category names come from the FTC Consumer Sentinel Data Book and the IC3 Internet Crime Report
+# as published up to 2025. Step 5 checks each name against the downloaded 2025 reports
+# (verified: false until then) and fixes any that changed.
+#
+# Tie-breaks (when a story fits more than one type) are listed at the bottom.
+
+version: 1
+date: 2026-11-27
+verified_against_reports: false
+
+types:
+  - id: investment
+    name: Investment scam
+    definition: >-
+      The victim is persuaded to "invest" (often crypto, trading apps or fake platforms) and pays
+      money they never get back.
+    authorised_payment: true   # the genuine customer sends the money themselves
+    in_simulator: true
+    ftc:
+      - {category: Investment Related, match: exact}
+    ic3:
+      - {crime_type: Investment, match: exact}
+
+  - id: romance
+    name: Romance scam
+    definition: >-
+      Someone builds a fake relationship (dating app, social media) and then asks for money:
+      emergencies, travel, fees, or a joint "investment".
+    authorised_payment: true
+    in_simulator: true
+    ftc:
+      - {category: Imposter Scams, subcategory: Romance Scams, match: exact}
+    ic3:
+      - {crime_type: Confidence/Romance, match: exact}
+
+  - id: impersonation_government
+    name: Government impersonation
+    definition: >-
+      The scammer pretends to be a government body (IRS, Social Security, police, courts) and
+      demands payment or "protection" of the victim's money.
+    authorised_payment: true
+    in_simulator: true
+    ftc:
+      - {category: Imposter Scams, subcategory: Government Imposters, match: exact}
+    ic3:
+      - {crime_type: Government Impersonation, match: exact}
+
+  - id: impersonation_bank
+    name: Bank impersonation
+    definition: >-
+      The scammer pretends to be the victim's own bank (its fraud team, often by phone or text)
+      and talks them into moving money to a "safe account" or sharing codes.
+    authorised_payment: true
+    in_simulator: true
+    ftc:
+      - {category: Imposter Scams, subcategory: Business Imposters, match: part}
+    ic3:
+      - {crime_type: Phishing/Spoofing, match: part}
+    note: >-
+      Neither report has a bank-only category. FTC counts bank impersonation inside Business
+      Imposters; IC3 spreads it across Phishing/Spoofing and others. Use CFPB stories for its share.
+
+  - id: impersonation_business
+    name: Business impersonation
+    definition: >-
+      The scammer pretends to be a well-known company other than the victim's bank (Amazon,
+      a utility, a delivery firm) and asks for payment or account access.
+    authorised_payment: true
+    in_simulator: true
+    ftc:
+      - {category: Imposter Scams, subcategory: Business Imposters, match: part}
+    ic3:
+      - {crime_type: Phishing/Spoofing, match: part}
+    note: FTC's Business Imposters also contains bank impersonation (see impersonation_bank).
+
+  - id: purchase_non_delivery
+    name: Purchase scam (paid, never received)
+    definition: >-
+      The victim pays for goods, rentals, tickets or pets that don't exist or never arrive,
+      usually through online marketplaces or social media.
+    authorised_payment: true
+    in_simulator: true
+    ftc:
+      - {category: Online Shopping and Negative Reviews, match: part}
+    ic3:
+      - {crime_type: Non-Payment/Non-Delivery, match: part}
+    note: >-
+      FTC's category also holds review complaints; IC3's also holds sellers who were never paid.
+
+  - id: job
+    name: Job scam
+    definition: >-
+      A fake job or task offer: the victim pays upfront fees, buys equipment, or "advances" money
+      for tasks and is never paid back.
+    authorised_payment: true
+    in_simulator: true
+    ftc:
+      - {category: Business and Job Opportunities, subcategory: Job Scams & Employment Agencies, match: exact}
+    ic3:
+      - {crime_type: Employment, match: exact}
+
+  - id: tech_support
+    name: Tech support scam
+    definition: >-
+      A fake computer or account "support" agent (pop-up, cold call) gets remote access or
+      payment to fix a problem that doesn't exist.
+    authorised_payment: true
+    in_simulator: true
+    ftc:
+      - {category: Imposter Scams, subcategory: Tech Support Scams, match: exact}
+    ic3:
+      - {crime_type: Tech Support, match: exact}
+
+  - id: invoice_redirection_bec
+    name: Invoice redirection / business email compromise
+    definition: >-
+      A business (or a home buyer) receives fake or hijacked emails that change payment details,
+      so a genuine invoice or deposit is paid to the criminal's account.
+    authorised_payment: true
+    in_simulator: true   # targets the simulator's 10k small businesses
+    ftc:
+      - {category: Imposter Scams, subcategory: Business Imposters, match: part}
+    ic3:
+      - {crime_type: BEC, match: exact}
+      - {crime_type: Real Estate, match: part}
+    note: >-
+      FTC collects mostly consumer reports, so BEC is undercounted there; use IC3 for its size.
+      Home-purchase deposit redirection appears in IC3's Real Estate category.
+
+  - id: other_scam
+    name: Other scam
+    definition: >-
+      Clearly a scam where the victim was tricked into paying, but none of the types above fits:
+      prize and lottery scams, family-emergency ("grandparent") scams, extortion, fake debts.
+    authorised_payment: true
+    in_simulator: false   # too varied to model one by one; counts toward the "other" share
+    ftc:
+      - {category: "Prizes, Sweepstakes and Lotteries", match: part}
+      - {category: Imposter Scams, subcategory: Family & Friend Imposters, match: part}
+    ic3:
+      - {crime_type: Lottery/Sweepstakes/Inheritance, match: part}
+      - {crime_type: Extortion, match: part}
+      - {crime_type: Advanced Fee, match: part}
+    note: >-
+      A catch-all, so no single report category matches. Its share is whatever scam losses are
+      left after the named types are counted, in each report.
+
+  - id: unauthorised_fraud
+    name: Unauthorised fraud (stolen card or login, not a scam)
+    definition: >-
+      Money taken WITHOUT the customer's agreement: stolen or copied card, account takeover,
+      someone else using their login. The customer didn't send it, so it's not a scam.
+    authorised_payment: false   # the contrast case: here the customer did not authorise it
+    in_simulator: true          # kept so models learn the difference from scams
+    ftc:
+      - {category: Identity Theft, subcategory: Credit Card Fraud, match: part}
+      - {category: Identity Theft, subcategory: Bank Fraud, match: part}
+    ic3:
+      - {crime_type: Credit Card/Check Fraud, match: part}
+      - {crime_type: Identity Theft, match: part}
+    note: >-
+      US rules (Regulation E) usually refund unauthorised transfers but not authorised scam
+      payments, which is why this must never be mixed up with the scam types.
+
+  - id: not_a_scam
+    name: Not a scam or fraud
+    definition: >-
+      The complaint isn't about a scam or fraud at all: fees, a frozen account, slow transfers,
+      a dispute with a real seller, customer service.
+    authorised_payment: false
+    in_simulator: false
+    ftc:
+      - {category: none, match: none}
+    ic3:
+      - {crime_type: none, match: none}
+    note: Not counted in any scam figure; kept so the classifier can say "this isn't one".
+
+# When a story fits more than one type, the first rule that applies wins.
+tie_breaks:
+  - >-
+    Did the customer send the money themselves? If not (card stolen, account taken over), it is
+    unauthorised_fraud, whatever else the story says.
+  - >-
+    Classify by the lie that got the money, not by what the money was spent on. A fake bank
+    caller who moves savings into crypto is impersonation_bank, not investment.
+  - >-
+    A relationship built first, then an "investment" pitch, is romance (the relationship was the
+    hook). An investment pitch with no relationship is investment.
+  - >-
+    Fake invoices or changed payment details for a business or home deposit are
+    invoice_redirection_bec, even if the email looked like it came from a known company.
+  - If it is clearly a scam but none of the named types fits, use other_scam.
+  - If unsure whether it is a scam at all, use not_a_scam and mark confidence "unsure".
