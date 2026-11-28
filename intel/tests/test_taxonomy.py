@@ -60,8 +60,35 @@ def test_partial_matches_explain_themselves() -> None:
             assert t.note, f"{t.id} has only partial or no matches but no note"
 
 
-def test_tie_breaks_put_unauthorised_first() -> None:
-    assert "unauthorised_fraud" in TAX.tie_breaks[0]
+def test_regulation_e_rule_comes_first_with_an_example_of_each_side() -> None:
+    """Who sent the money decides unauthorised fraud (refundable) versus a scam (not)."""
+    first = TAX.tie_breaks[0]
+    assert "Regulation E" in first.rule
+    assert "one-time code" in first.rule
+    labels = [ex.label for ex in first.examples]
+    assert labels == ["unauthorised_fraud", "impersonation_bank"]
+
+
+def test_pig_butchering_counts_as_investment() -> None:
+    lie_rule = next(tb for tb in TAX.tie_breaks if "lie that got the money" in tb.rule)
+    pig = next(ex for ex in lie_rule.examples if "Pig butchering" in ex.story)
+    assert pig.label == "investment"
+    assert "pig butchering" in TAX.get("investment").definition.lower()
+    assert "investment" not in TAX.get("romance").definition.split("If the money")[0]
+
+
+def test_every_worked_example_uses_a_real_type() -> None:
+    for tb in TAX.tie_breaks:
+        for ex in tb.examples:
+            assert ex.label in TAX.ids
+
+
+def test_mule_recruitment_is_a_yes_no_flag_not_a_type() -> None:
+    flag = TAX.flag("mule_recruitment")
+    assert flag.values == ("yes", "no")
+    assert "mule_recruitment" not in TAX.ids
+    with pytest.raises(KeyError, match="unknown flag"):
+        TAX.flag("crypto")
 
 
 def test_unknown_type_lookup_names_the_choices() -> None:
@@ -110,6 +137,23 @@ def _set(key: str, value: object, index: int = 0) -> object:
         (_set("authorised_payment", "yes"), "'authorised_payment' must be bool"),
         (lambda d: d.pop("tie_breaks"), "missing 'tie_breaks'"),
         (lambda d: d.update(tie_breaks=[]), "tie_breaks must be a non-empty list"),
+        (lambda d: d.update(tie_breaks=["a plain string"]), "must be a mapping with a 'rule'"),
+        (lambda d: d["tie_breaks"][0].update(rule=" "), "rule is empty"),
+        (
+            lambda d: d["tie_breaks"][0]["examples"][0].update(label="crypto"),
+            "is not a scam type id",
+        ),
+        (lambda d: d["tie_breaks"][0]["examples"][0].update(why=""), "needs a story and a reason"),
+        (
+            lambda d: d["tie_breaks"][0]["examples"].append("story"),
+            "each example must be a mapping",
+        ),
+        (lambda d: d.pop("flags"), "missing 'flags'"),
+        (lambda d: d["flags"][0].update(values=[True, False]), "values must be exactly"),
+        (lambda d: d["flags"][0].update(id="investment"), "can't share its id"),
+        (lambda d: d["flags"][0].update(id="Mule"), "id must be lower_snake_case"),
+        (lambda d: d["flags"][0].update(question=""), "needs a question and a definition"),
+        (lambda d: d["flags"].append("mule"), "flag #2 must be a mapping"),
         (lambda d: d.update(version=True), "'version' must be int"),
         (lambda d: d["types"].__setitem__(0, "investment"), "type #1 must be a mapping"),
         (
